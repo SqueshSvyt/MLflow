@@ -1,4 +1,4 @@
-# MLOps Lab 1 — Experiment Tracking з MLflow
+# MLOps — Experiment Tracking з MLflow
 
 Проєкт з налаштування ізольованого середовища, структури ML-проєкту (Cookiecutter Data Science), Git та автоматизованого відстеження експериментів за допомогою MLflow.
 
@@ -102,19 +102,3 @@ python src/train.py --model GradientBoosting --max_depth 5 --n_estimators 100 --
    - `tags.model_type = "RandomForest"`
    - `tags.author = "lab"`
    щоб відфільтрувати запуски за тегами.
-
-## Розширення функціоналу (Крок 5)
-
-- **CLI:** усі гіперпараметри передаються аргументами командного рядка (argparse).
-- **Feature Importance:** графік важливості ознак зберігається як артефакт у кожному run.
-- **Теги (Tags):** `model_type`, `author`, `dataset_version` — для фільтрації в MLflow UI.
-- **Метрики train і test:** логуються `train_accuracy`, `test_accuracy`, `train_f1_weighted`, `test_f1_weighted` для аналізу перенавчання.
-
-## Вимоги
-
-- Python 3.8+
-- Git
-
-## Ліцензія
-
-Навчальний проєкт (MLOps Lab 1).
