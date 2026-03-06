@@ -66,3 +66,4 @@ Thumbs.db
 # DB
 mlflow.db
 /metrics.json
+/mlruns

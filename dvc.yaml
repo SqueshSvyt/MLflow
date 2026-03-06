@@ -8,11 +8,10 @@ stages:
       - data/prepared
 
   train:
-    cmd: python src/run_all_models.py data/prepared data/models
+    cmd: python src/train.py --prepared data/prepared
     deps:
       - data/prepared
-      - src/run_all_models.py
+      - src/train.py
       - src/models
     outs:
-      - data/models
-      - metrics.json
+      - mlruns

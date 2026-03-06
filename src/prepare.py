@@ -3,6 +3,7 @@
 Читає data/raw (метадані + hmnist), будує об'єднані дані, ділить на train/test, зберігає в data/prepared.
 """
 import argparse
+import json
 import pathlib
 import sys
 
@@ -39,6 +40,8 @@ def main():
 
     train_df.to_parquet(prepared_dir / "train.parquet", index=False)
     test_df.to_parquet(prepared_dir / "test.parquet", index=False)
+    split_params = {"test_size": args.test_size, "random_state": args.random_state}
+    (prepared_dir / "params.json").write_text(json.dumps(split_params, indent=2), encoding="utf-8")
     print(f"Saved train {len(train_df)} and test {len(test_df)} to {prepared_dir}")
     return 0
 
