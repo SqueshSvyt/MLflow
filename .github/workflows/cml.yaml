@@ -22,6 +22,7 @@ jobs:
     env:
       MLFLOW_TRACKING_URI: ${{ github.workspace }}/mlruns
       QUALITY_F1_MIN: "0.01"
+      PYTHONPATH: ${{ github.workspace }}
 
     steps:
       - uses: actions/checkout@v4
