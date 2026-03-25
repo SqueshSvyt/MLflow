@@ -85,9 +85,6 @@ def test_latest_run_has_model_artifact():
                 to_visit.append(item.path)
 
     assert any(
-        p == "model"
-        or p.startswith("model/")
-        or p.endswith("/MLmodel")
-        or p == "MLmodel"
+        p == "model" or p.startswith("model/") or p.endswith("/MLmodel") or p == "MLmodel"
         for p in paths
     ), paths
