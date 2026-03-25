@@ -1,4 +1,10 @@
 [core]
-    remote = mylocal
-['remote "mylocal"']
+    remote = minio
+
+[remote "mylocal"]
     url = ../../dvc_storage
+
+[remote "minio"]
+    url = s3://dvc-store/prefix
+    endpointurl = http://194.163.140.191:9000
+    ssl_verify = false

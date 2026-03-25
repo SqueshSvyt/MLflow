@@ -1,0 +1,75 @@
+# CI при кожному push: lint, цілісність DAG, збірка Docker-образів
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install linters
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Black
+        run: black --check tests src/ci_export_rf.py airflow/dags scripts
+
+      - name: Flake8
+        run: flake8 tests src/ci_export_rf.py airflow/dags scripts
+
+      - name: Pylint (scripts; Airflow не встановлений — import-error вимкнено для verify)
+        run: |
+          pylint --errors-only --disable=import-error --max-line-length=100 \
+            scripts/verify_dag_integrity.py \
+            scripts/export_model_bundle.py
+
+  dag-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Apache Airflow (constraints, як у продакшн-образі)
+        run: |
+          python -m pip install --upgrade pip
+          pip install "apache-airflow==2.8.1" \
+            --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.8.1/constraints-3.11.txt"
+
+      - name: DagBag — без import_errors
+        run: python scripts/verify_dag_integrity.py
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ML project image (кореневий Dockerfile)
+        run: docker build -t mlflow-ham10000:ci .
+
+      # Явний context=. — інакше compose інколи дає "requirements-docker.txt: not found"
+      - name: Build Airflow + ML deps (airflow/Dockerfile)
+        run: docker build -f airflow/Dockerfile -t mlflow-ham10000-airflow:2.8.1 .
