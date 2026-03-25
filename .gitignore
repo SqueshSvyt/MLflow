@@ -13,8 +13,9 @@ data/processed/
 # MLflow логи
 mlruns/
 
-# Збережені моделі
-models/
+# Збережені моделі (лише артефакти; НЕ src/models — там Python-код пакету)
+/models/
+data/models/
 *.pkl
 *.joblib
 *.h5

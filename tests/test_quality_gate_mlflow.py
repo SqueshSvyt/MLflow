@@ -60,12 +60,36 @@ def test_latest_run_has_model_artifact():
     runs = client.search_runs(
         experiment_ids=[exp.experiment_id],
         order_by=["start_time DESC"],
-        max_results=3,
+        max_results=15,
     )
     if not runs:
         pytest.skip("no runs")
+    runs = [r for r in runs if r.data.tags.get("run_type") != "hpo_study"] or runs
 
-    rid = runs[0].info.run_id
-    artifacts = [a.path for a in client.list_artifacts(rid)]
-    # sklearn.log_model створює каталог "model"
-    assert any(a == "model" or a.startswith("model/") for a in artifacts), artifacts
+    run = runs[0]
+    rid = run.info.run_id
+
+    # MLflow 3 може зберігати модель не лише як артефакт "model/",
+    # тому перевіряємо і tag історії log_model, і файлові артефакти.
+    history = run.data.tags.get("mlflow.log-model.history")
+    if history:
+        return
+
+    to_visit = [""]
+    paths: list[str] = []
+    while to_visit:
+        prefix = to_visit.pop()
+        for item in client.list_artifacts(rid, path=prefix):
+            paths.append(item.path)
+            if item.is_dir:
+                to_visit.append(item.path)
+
+    assert any(
+        p == "model"
+        or p.startswith("model/")
+        or p == "model.pkl"
+        or p.endswith("/model.pkl")
+        or p.endswith("/MLmodel")
+        or p == "MLmodel"
+        for p in paths
+    ), paths

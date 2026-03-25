@@ -34,8 +34,20 @@ def load_prepared(prepared_dir: pathlib.Path):
     return X_train, X_test, y_train, y_test, feature_cols
 
 
+def _ensure_repo_root_first_on_syspath(root: pathlib.Path) -> None:
+    """При `python src/train.py` перший шлях — каталог src; потрібен корінь репо для `import src.models`."""
+    root_s = str(root.resolve())
+    try:
+        while root_s in sys.path:
+            sys.path.remove(root_s)
+    except ValueError:
+        pass
+    sys.path.insert(0, root_s)
+
+
 def _run_training(root, args, X_train, X_test, y_train, y_test, feature_names):
     """Спільна логіка навчання: масштабування + виклик module.run()."""
+    _ensure_repo_root_first_on_syspath(root)
     from src.models import MODEL_REGISTRY  # noqa: E402
 
     scaler = StandardScaler()
@@ -56,8 +68,7 @@ def run_from_config(cfg: dict) -> int:
     Використовує cfg.model (якщо є) та cfg.train для параметрів.
     """
     root = pathlib.Path(__file__).resolve().parent.parent
-    if str(root) not in sys.path:
-        sys.path.insert(0, str(root))
+    _ensure_repo_root_first_on_syspath(root)
     paths = cfg.get("paths", {})
     prepared_dir = pathlib.Path(paths.get("prepared_dir", "data/prepared"))
     if not prepared_dir.is_absolute():
@@ -100,8 +111,7 @@ def run_from_config(cfg: dict) -> int:
 def main():
     """Entry point. argparse + MODEL_REGISTRY. Uses data/prepared (prepare.py output) by default."""
     root = pathlib.Path(__file__).resolve().parent.parent
-    if str(root) not in sys.path:
-        sys.path.insert(0, str(root))
+    _ensure_repo_root_first_on_syspath(root)
 
     parser = argparse.ArgumentParser(description="Train model with MLflow")
     parser.add_argument(
