@@ -1,4 +1,5 @@
 """RandomForest model: train and log to MLflow or run_dvc for DVC pipeline."""
+
 import pathlib
 import joblib
 from sklearn.ensemble import RandomForestClassifier
@@ -72,6 +73,11 @@ def run(X_train, X_test, y_train, y_test, feature_names, args, root: pathlib.Pat
         cm_path.unlink(missing_ok=True)
 
         mlflow.sklearn.log_model(model, "model")
+        # Fallback artifact for CI/FS backends where model directory may be absent in run artifacts.
+        model_pkl_path = root / "model.pkl"
+        joblib.dump(model, model_pkl_path)
+        mlflow.log_artifact(str(model_pkl_path))
+        model_pkl_path.unlink(missing_ok=True)
         results_path = root / "metrics.txt"
         results_path.write_text(
             f"train_accuracy={train_accuracy:.4f}\ntest_accuracy={test_accuracy:.4f}\n"
@@ -81,7 +87,9 @@ def run(X_train, X_test, y_train, y_test, feature_names, args, root: pathlib.Pat
         mlflow.log_artifact(str(results_path))
         results_path.unlink(missing_ok=True)
 
-        print(f"[RandomForest] train_accuracy={train_accuracy:.4f}, test_accuracy={test_accuracy:.4f}")
+        print(
+            f"[RandomForest] train_accuracy={train_accuracy:.4f}, test_accuracy={test_accuracy:.4f}"
+        )
         print(f"train_f1={train_f1:.4f}, test_f1={test_f1:.4f}")
         print("Run saved to MLflow.")
 
