@@ -15,37 +15,42 @@ try:
 
     TORCH_AVAILABLE = True
 except ImportError:
+    torch = None  # type: ignore[assignment]
+    nn = None  # type: ignore[assignment]
+    TensorDataset = None  # type: ignore[assignment]
+    DataLoader = None  # type: ignore[assignment]
     TORCH_AVAILABLE = False
 
 CNN_EMBED = 128
 
+if TORCH_AVAILABLE:
 
-class SimpleCNN(nn.Module):
-    """CNN for 28x28 grayscale + optional metadata -> 7 classes."""
+    class SimpleCNN(nn.Module):
+        """CNN for 28x28 grayscale + optional metadata -> 7 classes."""
 
-    def __init__(self, num_classes: int = 7, use_meta: bool = True):
-        super().__init__()
-        self.use_meta = use_meta
-        self.features = nn.Sequential(
-            nn.Conv2d(1, 32, 3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, 3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2),
-            nn.Conv2d(64, 128, 3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.AdaptiveAvgPool2d(1),
-        )
-        in_fc = CNN_EMBED + (META_FEATURES if use_meta else 0)
-        self.classifier = nn.Linear(in_fc, num_classes)
+        def __init__(self, num_classes: int = 7, use_meta: bool = True):
+            super().__init__()
+            self.use_meta = use_meta
+            self.features = nn.Sequential(
+                nn.Conv2d(1, 32, 3, padding=1),
+                nn.ReLU(inplace=True),
+                nn.MaxPool2d(2),
+                nn.Conv2d(32, 64, 3, padding=1),
+                nn.ReLU(inplace=True),
+                nn.MaxPool2d(2),
+                nn.Conv2d(64, 128, 3, padding=1),
+                nn.ReLU(inplace=True),
+                nn.AdaptiveAvgPool2d(1),
+            )
+            in_fc = CNN_EMBED + (META_FEATURES if use_meta else 0)
+            self.classifier = nn.Linear(in_fc, num_classes)
 
-    def forward(self, x_img, x_meta=None):
-        x = self.features(x_img)
-        x = x.view(x.size(0), -1)
-        if self.use_meta and x_meta is not None:
-            x = torch.cat([x, x_meta], dim=1)
-        return self.classifier(x)
+        def forward(self, x_img, x_meta=None):
+            x = self.features(x_img)
+            x = x.view(x.size(0), -1)
+            if self.use_meta and x_meta is not None:
+                x = torch.cat([x, x_meta], dim=1)
+            return self.classifier(x)
 
 
 def run(args, root, X_train, X_test, y_train, y_test, le_dx):

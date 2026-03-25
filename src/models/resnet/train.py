@@ -16,29 +16,35 @@ try:
 
     TORCH_AVAILABLE = True
 except ImportError:
+    torch = None  # type: ignore[assignment]
+    nn = None  # type: ignore[assignment]
+    TensorDataset = None  # type: ignore[assignment]
+    DataLoader = None  # type: ignore[assignment]
+    tv_models = None  # type: ignore[assignment]
     TORCH_AVAILABLE = False
 
 RESNET_EMBED = 512
 
+if TORCH_AVAILABLE:
 
-class ResNet18WithMeta(nn.Module):
-    """ResNet18 backbone (1ch 28x28) + concat metadata -> num_classes."""
+    class ResNet18WithMeta(nn.Module):
+        """ResNet18 backbone (1ch 28x28) + concat metadata -> num_classes."""
 
-    def __init__(self, num_classes: int = 7, use_meta: bool = True):
-        super().__init__()
-        self.use_meta = use_meta
-        backbone = tv_models.resnet18(weights=None, num_classes=RESNET_EMBED)
-        backbone.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        backbone.fc = nn.Identity()
-        self.backbone = backbone
-        in_fc = RESNET_EMBED + (META_FEATURES if use_meta else 0)
-        self.fc = nn.Linear(in_fc, num_classes)
+        def __init__(self, num_classes: int = 7, use_meta: bool = True):
+            super().__init__()
+            self.use_meta = use_meta
+            backbone = tv_models.resnet18(weights=None, num_classes=RESNET_EMBED)
+            backbone.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+            backbone.fc = nn.Identity()
+            self.backbone = backbone
+            in_fc = RESNET_EMBED + (META_FEATURES if use_meta else 0)
+            self.fc = nn.Linear(in_fc, num_classes)
 
-    def forward(self, x_img, x_meta=None):
-        x = self.backbone(x_img)
-        if self.use_meta and x_meta is not None:
-            x = torch.cat([x, x_meta], dim=1)
-        return self.fc(x)
+        def forward(self, x_img, x_meta=None):
+            x = self.backbone(x_img)
+            if self.use_meta and x_meta is not None:
+                x = torch.cat([x, x_meta], dim=1)
+            return self.fc(x)
 
 
 def run(args, root, X_train, X_test, y_train, y_test, le_dx):
