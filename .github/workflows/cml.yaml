@@ -1,11 +1,25 @@
-# CML + lint + тести + train + Quality Gate + звіт у PR
-# Опційно: артефакти на main (upload-artifact)
+# Повний ML-пайплайн у CI:
+# - Lint → unit-тести → (опційно) dvc pull + dvc repro prepare train | синтетика + prepare + train
+# → integration → експорт model.pkl / metrics.json / confusion_matrix.png → CML (PR) / artifact (main)
+#
+# Remote MinIO: у репозиторії Settings → Secrets → Actions додай:
+#   MINIO_ACCESS_KEY_ID, MINIO_SECRET_ACCESS_KEY
+# У Settings → Variables → Actions додай:
+#   DVC_IN_CI = true   (увімкнути pull + dvc repro; без змінної — лише синтетичні дані)
+#
+# Великий data/raw на remote: перший pull може зайняти десятки хвилин; timeout job збільшено.
 name: CML
 
 on:
   push:
-    branches: [main, master]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      use_dvc_remote:
+        description: "Використати dvc pull + dvc repro (потрібні secrets + endpoint у .dvc/config)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -19,10 +33,14 @@ concurrency:
 jobs:
   train-and-report:
     runs-on: ubuntu-latest
+    timeout-minutes: 180
     env:
       MLFLOW_TRACKING_URI: ${{ github.workspace }}/mlruns
       QUALITY_F1_MIN: "0.01"
       PYTHONPATH: ${{ github.workspace }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.MINIO_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.MINIO_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: us-east-1
 
     steps:
       - uses: actions/checkout@v4
@@ -37,7 +55,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-ci.txt
 
-      # Лінт: тести + ci_export (повний src можна додати після вирівнювання стилю)
       - name: Lint (black)
         run: black --check tests src/ci_export_rf.py
 
@@ -47,7 +64,29 @@ jobs:
       - name: Unit / smoke tests (без integration)
         run: pytest tests/ -m "not integration" --tb=short
 
-      - name: Synthetic raw data + prepare + train
+      - name: Обчислити чи використовувати DVC remote
+        id: dvc_mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.use_dvc_remote }}" = "true" ]; then
+            echo "use=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ vars.DVC_IN_CI }}" = "true" ]; then
+            echo "use=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "use=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Пайплайн — DVC pull + dvc repro (prepare, train)
+        if: steps.dvc_mode.outputs.use == 'true'
+        run: |
+          if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "::error::Увімкнено DVC remote, але немає MINIO_ACCESS_KEY_ID / MINIO_SECRET_ACCESS_KEY у Secrets"
+            exit 1
+          fi
+          dvc pull data/raw.dvc
+          dvc repro prepare train
+
+      - name: Пайплайн — синтетичні дані + prepare + train
+        if: steps.dvc_mode.outputs.use != 'true'
         run: |
           python tests/fixtures/generate_mini_ham10000.py --out data/raw
           python src/prepare.py data/raw data/prepared --test_size 0.2
