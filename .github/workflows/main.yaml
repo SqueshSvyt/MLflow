@@ -70,5 +70,6 @@ jobs:
       - name: Build ML project image (кореневий Dockerfile)
         run: docker build -t mlflow-ham10000:ci .
 
+      # Явний context=. — інакше compose інколи дає "requirements-docker.txt: not found"
       - name: Build Airflow + ML deps (airflow/Dockerfile)
-        run: docker compose -f airflow/docker-compose.yaml build
+        run: docker build -f airflow/Dockerfile -t mlflow-ham10000-airflow:2.8.1 .
