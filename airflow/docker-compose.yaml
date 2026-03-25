@@ -1,0 +1,94 @@
+# Локальний Apache Airflow (LocalExecutor) + монтування ML-репозиторію.
+#
+# З кореня репозиторію:
+#   echo "AIRFLOW_UID=$(id -u)" > airflow/.env
+#   docker compose -f airflow/docker-compose.yaml up airflow-init
+#   docker compose -f airflow/docker-compose.yaml up -d
+#
+# UI: http://localhost:8080  (admin / admin)
+#
+# Змінні Airflow (опційно): Admin → Variables → F1_THRESHOLD (float, напр. 0.35)
+
+x-airflow-common: &airflow-common
+  build:
+    context: ..
+    dockerfile: airflow/Dockerfile
+  image: mlflow-ham10000-airflow:2.8.1
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-1unEy1QBlrH2c24kNVAHrkOIDG9NnR4YZjkQK88uBWI=}
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY:-local_dev_secret_change_me}
+    ML_REPO_PATH: /opt/airflow/ml_repo
+    MLFLOW_TRACKING_URI: file:/opt/airflow/ml_repo/mlruns
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ../:/opt/airflow/ml_repo
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on: &airflow-common-depends-on
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+
+  airflow-init:
+    <<: *airflow-common
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: admin
+    user: "0:0"
+    command: ["airflow", "version"]
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", 'curl --fail http://localhost:8080/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-db-volume:
