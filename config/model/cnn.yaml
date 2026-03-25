@@ -1,0 +1,12 @@
+# Відповідає src.models.cnn: SimpleCNN, Adam(lr), args.epochs, args.batch_size
+name: CNN
+
+epochs: 10
+batch_size: 64
+learning_rate: 0.001
+
+# Простір пошуку для HPO (optimize.py, тільки strategy=optuna)
+search_space:
+  learning_rate: [0.0001, 0.01]
+  batch_size: [32, 128]
+  epochs: [4, 14]

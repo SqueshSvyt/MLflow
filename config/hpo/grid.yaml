@@ -1,0 +1,12 @@
+# HPO стратегія: Grid Search
+strategy: grid
+
+study_name: ham10000_hpo_grid
+metric: val_f1_weighted
+direction: maximize
+
+evaluation: holdout
+val_ratio: 0.2
+val_random_state: 42
+n_folds: 5
+max_combinations: 20

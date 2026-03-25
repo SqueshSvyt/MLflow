@@ -15,3 +15,14 @@ stages:
       - src/models
     outs:
       - mlruns
+
+  optimize:
+    cmd: python src/optimize.py
+    deps:
+      - data/prepared
+      - config/config.yaml
+      - config/model
+      - config/hpo
+      - src/optimize.py
+    outs:
+      - temp

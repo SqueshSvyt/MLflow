@@ -1,0 +1,10 @@
+# Відповідає src.models.resnet: ResNet18WithMeta, Adam(lr), args.epochs, args.batch_size
+name: ResNet
+
+# Гіперпараметри для train (run() у resnet/train.py)
+epochs: 10
+batch_size: 64
+learning_rate: 0.001
+
+# HPO через optimize.py не реалізовано для PyTorch; лише train/run_train
+search_space: {}

@@ -1,0 +1,38 @@
+# Hydra: defaults з config/model/ та config/hpo/
+# Запуск: python src/train.py | python src/run_train.py | python src/optimize.py
+# Overrides: model=random_forest | gradient_boosting | cnn | resnet; hpo=optuna | random | grid
+
+defaults:
+  - model: random_forest
+  - hpo: optuna
+  - _self_
+
+# Шляхи (від кореня проєкту)
+paths:
+  prepared_dir: data/prepared
+  mlruns_dir: mlruns
+
+# Відтворюваність
+reproducibility:
+  random_state: 42
+  dataset_version: "v1"
+  author: "default"
+
+# Підготовка даних (prepare.py)
+prepare:
+  test_size: 0.2
+  split_random_state: 42
+
+# Глобальні параметри навчання (доповнюють model/*.yaml для train.py)
+train:
+  epochs: 10
+  batch_size: 64
+  learning_rate: 0.1
+
+# Крок 7: реєстрація найкращої моделі (додатковий).
+# (B) Модель завжди зберігається як артефакт best_model у run — можна відтворити.
+# (A) Якщо є MLflow tracking server з backend store — увімкніть register_best для Registry + Staging.
+model_registry:
+  register_best: false
+  registered_model_name: ham10000_best
+  stage: Staging

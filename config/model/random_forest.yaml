@@ -1,0 +1,16 @@
+# Відповідає src.models.random_forest: RandomForestClassifier(max_depth, n_estimators)
+name: RandomForest
+
+# Гіперпараметри для train (build_model у random_forest/train.py)
+max_depth: 5
+n_estimators: 100
+
+# Для HPO в optimize.py (додаткові параметри sklearn)
+min_samples_split: 2
+min_samples_leaf: 1
+
+search_space:
+  max_depth: [2, 20]
+  n_estimators: [50, 300]
+  min_samples_split: [2, 20]
+  min_samples_leaf: [1, 10]

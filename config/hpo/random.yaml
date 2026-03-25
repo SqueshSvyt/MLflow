@@ -1,0 +1,12 @@
+# HPO стратегія: Random Search
+strategy: random
+
+n_iter: 20
+study_name: ham10000_hpo_random
+metric: val_f1_weighted
+direction: maximize
+
+evaluation: holdout
+val_ratio: 0.2
+val_random_state: 42
+n_folds: 5
