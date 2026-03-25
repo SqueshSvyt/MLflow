@@ -1,0 +1,5 @@
+# CI / dev (install: pip install -r requirements.txt -r requirements-dev.txt)
+pytest>=7.4.0
+pytest-cov>=4.1.0
+flake8>=6.1.0
+black>=23.12.0

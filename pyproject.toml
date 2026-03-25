@@ -1,0 +1,12 @@
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+extend-exclude = "/(venv|\\.venv|mlruns|\\.dvc)/"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "src"]
+markers = [
+    "integration: потребує підготовлених даних / MLflow після train (CI — після пайплайну)",
+]
+addopts = "-v --tb=short"

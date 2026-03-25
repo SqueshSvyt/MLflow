@@ -173,3 +173,9 @@ python src/optimize.py model=cnn hpo.n_trials=8
    - `tags.model_type = "RandomForest"`
    - `tags.author = "lab"`
    щоб відфільтрувати запуски за тегами.
+
+### CI / GitHub Actions (CML) і тести
+
+- **Workflow:** `.github/workflows/cml.yaml` — на `push` / `pull_request` (гілки `main` / `master`): встановлення залежностей (`requirements-ci.txt`), **black** / **flake8** на `tests/` та `src/ci_export_rf.py`, **pytest** (швидкі тести), синтетичні дані (`tests/fixtures/generate_mini_ham10000.py`), **prepare → train** (RandomForest), інтеграційні тести (**Quality Gate** за `test_f1_weighted`, змінна `QUALITY_F1_MIN`), експорт **`ci_artifacts/`** (`model.pkl`, `metrics.json`, `confusion_matrix.png`), **CML**-звіт у PR (`cml comment create`). На **main/master** після успіху завантажується артефакт **`model-ci-bundle`**.
+- **Локально:** `pip install -r requirements.txt -r requirements-dev.txt` (або `requirements-ci.txt` для мінімального набору), `pytest tests/ -m "not integration"`, після повного пайплайну — `pytest tests/ -m integration`.
+- **MLflow Registry (опційно CD):** залиште реєстрацію через `config/model_registry` у `optimize.py` або додайте крок у workflow з секретами сервера MLflow.
