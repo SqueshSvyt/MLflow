@@ -1,0 +1,86 @@
+# CML + lint + тести + train + Quality Gate + звіт у PR
+# Опційно: артефакти на main (upload-artifact)
+name: CML
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: cml-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  train-and-report:
+    runs-on: ubuntu-latest
+    env:
+      MLFLOW_TRACKING_URI: ${{ github.workspace }}/mlruns
+      QUALITY_F1_MIN: "0.01"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-ci.txt
+
+      # Лінт: тести + ci_export (повний src можна додати після вирівнювання стилю)
+      - name: Lint (black)
+        run: black --check tests src/ci_export_rf.py
+
+      - name: Lint (flake8)
+        run: flake8 tests src/ci_export_rf.py
+
+      - name: Unit / smoke tests (без integration)
+        run: pytest tests/ -m "not integration" --tb=short
+
+      - name: Synthetic raw data + prepare + train
+        run: |
+          python tests/fixtures/generate_mini_ham10000.py --out data/raw
+          python src/prepare.py data/raw data/prepared --test_size 0.2
+          python src/train.py --prepared data/prepared --model RandomForest \
+            --max_depth 5 --n_estimators 40 --random_state 42
+
+      - name: Integration — Quality Gate + MLflow artifacts
+        run: pytest tests/ -m integration --tb=short
+
+      - name: Export model.pkl / metrics.json / confusion_matrix.png
+        run: python src/ci_export_rf.py
+
+      - uses: iterative/setup-cml@v2
+
+      - name: CML report (PR)
+        if: github.event_name == 'pull_request'
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "## Train / Quality Gate" > report.md
+          echo "" >> report.md
+          echo "### metrics.json (ci_export_rf)" >> report.md
+          echo '```json' >> report.md
+          cat ci_artifacts/metrics.json >> report.md
+          echo '```' >> report.md
+          echo "" >> report.md
+          echo "### Confusion matrix" >> report.md
+          cml publish ci_artifacts/confusion_matrix.png --md >> report.md
+          cml comment create report.md
+
+      - name: Upload model bundle (main/master only)
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-ci-bundle
+          path: ci_artifacts/
+          retention-days: 14
