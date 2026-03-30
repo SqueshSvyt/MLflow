@@ -89,7 +89,9 @@ def evaluate_latest_run(**context) -> None:
             max_results=20,
         )
     except Exception as exc:
-        log.warning("evaluate_model: search_runs не вдалося (%s) — перевірте цілісність %s", exc, tracking)
+        log.warning(
+            "evaluate_model: search_runs не вдалося (%s) — перевірте цілісність %s", exc, tracking
+        )
         ti.xcom_push(key="test_f1", value=0.0)
         ti.xcom_push(key="run_id", value="")
         ti.xcom_push(key="model_uri_suffix", value="model")
