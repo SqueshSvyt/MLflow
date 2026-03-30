@@ -29,16 +29,15 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Black
-        run: black --check tests src/ci_export_rf.py airflow/dags scripts
+        run: black --check tests airflow/dags scripts
 
       - name: Flake8
-        run: flake8 tests src/ci_export_rf.py airflow/dags scripts
+        run: flake8 tests airflow/dags scripts
 
       - name: Pylint (scripts; Airflow не встановлений — import-error вимкнено для verify)
         run: |
           pylint --errors-only --disable=import-error --max-line-length=100 \
-            scripts/verify_dag_integrity.py \
-            scripts/export_model_bundle.py
+            scripts/verify_dag_integrity.py
 
   dag-integrity:
     runs-on: ubuntu-latest

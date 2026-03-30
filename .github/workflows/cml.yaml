@@ -1,38 +1,28 @@
-# Повний ML-пайплайн у CI:
-# - Lint → unit-тести → (опційно) dvc pull + dvc repro prepare train | синтетика + prepare + train
-# → integration → експорт model.pkl / metrics.json / confusion_matrix.png → CML (PR) / artifact (main)
+# ML-пайплайн у CI:
+# - Lint → unit-тести → DVC pull + dvc repro (prepare, train) → integration (Quality Gate + MLflow)
 #
-# Remote MinIO: у репозиторії Settings → Secrets → Actions додай:
+# Remote MinIO: Settings → Secrets → Actions:
 #   MINIO_ACCESS_KEY_ID, MINIO_SECRET_ACCESS_KEY
-# У Settings → Variables → Actions додай:
-#   DVC_IN_CI = true   (увімкнути pull + dvc repro; без змінної — лише синтетичні дані)
+# (без них job завершиться помилкою — сирі дані лише з DVC remote)
 #
 # Великий data/raw на remote: перший pull може зайняти десятки хвилин; timeout job збільшено.
-name: CML
+name: ML Train CI
 
 on:
   push:
     branches: [main, master]
   pull_request:
   workflow_dispatch:
-    inputs:
-      use_dvc_remote:
-        description: "Використати dvc pull + dvc repro (потрібні secrets + endpoint у .dvc/config)"
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
-  pull-requests: write
-  id-token: write
 
 concurrency:
-  group: cml-${{ github.workflow }}-${{ github.ref }}
+  group: ml-train-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  train-and-report:
+  train-and-verify:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
@@ -57,71 +47,22 @@ jobs:
           pip install -r requirements-ci.txt
 
       - name: Lint (black)
-        run: black --check tests src/ci_export_rf.py
+        run: black --check tests airflow/dags scripts
 
       - name: Lint (flake8)
-        run: flake8 tests src/ci_export_rf.py
+        run: flake8 tests airflow/dags scripts
 
       - name: Unit / smoke tests (без integration)
         run: pytest tests/ -m "not integration" --tb=short
 
-      - name: Обчислити чи використовувати DVC remote
-        id: dvc_mode
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.use_dvc_remote }}" = "true" ]; then
-            echo "use=true" >> "$GITHUB_OUTPUT"
-          elif [ "${{ vars.DVC_IN_CI }}" = "true" ]; then
-            echo "use=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "use=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Пайплайн — DVC pull + dvc repro (prepare, train)
-        if: steps.dvc_mode.outputs.use == 'true'
         run: |
           if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
-            echo "::error::Увімкнено DVC remote, але немає MINIO_ACCESS_KEY_ID / MINIO_SECRET_ACCESS_KEY у Secrets"
+            echo "::error::Потрібні MINIO_ACCESS_KEY_ID та MINIO_SECRET_ACCESS_KEY у Secrets для dvc pull"
             exit 1
           fi
           dvc pull data/raw.dvc
           dvc repro prepare train
 
-      - name: Пайплайн — синтетичні дані + prepare + train
-        if: steps.dvc_mode.outputs.use != 'true'
-        run: |
-          python tests/fixtures/generate_mini_ham10000.py --out data/raw
-          python src/prepare.py data/raw data/prepared --test_size 0.2
-          python src/train.py --prepared data/prepared --model RandomForest \
-            --max_depth 5 --n_estimators 40 --random_state 42
-
       - name: Integration — Quality Gate + MLflow artifacts
         run: pytest tests/ -m integration --tb=short
-
-      - name: Export model.pkl / metrics.json / confusion_matrix.png
-        run: python src/ci_export_rf.py
-
-      - uses: iterative/setup-cml@v2
-
-      - name: CML report (PR)
-        if: github.event_name == 'pull_request'
-        env:
-          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "## Train / Quality Gate" > report.md
-          echo "" >> report.md
-          echo "### metrics.json (ci_export_rf)" >> report.md
-          echo '```json' >> report.md
-          cat ci_artifacts/metrics.json >> report.md
-          echo '```' >> report.md
-          echo "" >> report.md
-          echo "### Confusion matrix" >> report.md
-          cml publish ci_artifacts/confusion_matrix.png --md >> report.md
-          cml comment create report.md
-
-      - name: Upload model bundle (main/master only)
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-        uses: actions/upload-artifact@v4
-        with:
-          name: model-ci-bundle
-          path: ci_artifacts/
-          retention-days: 14

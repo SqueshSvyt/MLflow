@@ -1,29 +1,23 @@
-#!/usr/bin/env python3
 """
-Міні-датасет для CI: ті самі колонки, що HAM10000 + hmnist_28_28_L (784 пікселі + label).
-Запуск з кореня репозиторію:
-  python tests/fixtures/generate_mini_ham10000.py --out data/raw
+Мінімальні сирі CSV у форматі HAM10000 лише для юніт-тестів (load_combined, prepare).
+Не використовується в GitHub Actions — CI тягне data/raw через DVC.
 """
 
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 DX_CLASSES = ["nv", "mel", "bkl", "bcc", "akiec", "vasc", "df"]
-N_PER_CLASS = 12  # достатньо для stratify у prepare
+N_PER_CLASS = 12
 
 
-def main() -> int:
-    p = argparse.ArgumentParser()
-    p.add_argument("--out", type=Path, default=Path("data/raw"))
-    args = p.parse_args()
-    out: Path = args.out.resolve()
+def write_mini_ham_raw(out: Path) -> None:
+    """Записує HAM10000_metadata.csv та hmnist_28_28_L.csv у каталог out."""
+    out = out.resolve()
     out.mkdir(parents=True, exist_ok=True)
-
     rng = np.random.default_rng(42)
     rows = []
     hmnist_rows = []
@@ -49,13 +43,5 @@ def main() -> int:
             hmnist_rows.append(row)
             idx += 1
 
-    meta = pd.DataFrame(rows)
-    hmnist = pd.DataFrame(hmnist_rows)
-    meta.to_csv(out / "HAM10000_metadata.csv", index=False)
-    hmnist.to_csv(out / "hmnist_28_28_L.csv", index=False)
-    print(f"Wrote {len(meta)} rows to {out}")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    pd.DataFrame(rows).to_csv(out / "HAM10000_metadata.csv", index=False)
+    pd.DataFrame(hmnist_rows).to_csv(out / "hmnist_28_28_L.csv", index=False)

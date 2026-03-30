@@ -174,8 +174,8 @@ python src/optimize.py model=cnn hpo.n_trials=8
    - `tags.author = "lab"`
    щоб відфільтрувати запуски за тегами.
 
-### CI / GitHub Actions (CML) і тести
+### CI / GitHub Actions і тести
 
-- **Workflow:** `.github/workflows/cml.yaml` — на `push` / `pull_request` (гілки `main` / `master`): встановлення залежностей (`requirements-ci.txt`), **black** / **flake8** на `tests/` та `src/ci_export_rf.py`, **pytest** (швидкі тести), синтетичні дані (`tests/fixtures/generate_mini_ham10000.py`), **prepare → train** (RandomForest), інтеграційні тести (**Quality Gate** за `test_f1_weighted`, змінна `QUALITY_F1_MIN`), експорт **`ci_artifacts/`** (`model.pkl`, `metrics.json`, `confusion_matrix.png`), **CML**-звіт у PR (`cml comment create`). На **main/master** після успіху завантажується артефакт **`model-ci-bundle`**.
+- **Workflow:** `.github/workflows/cml.yaml` (GitHub: **ML Train CI**) — на `push` / `pull_request` (гілки `main` / `master`): `requirements-ci.txt`, **black** / **flake8** на `tests/`, `airflow/dags`, `scripts`, **pytest** без integration, **`dvc pull data/raw.dvc` + `dvc repro prepare train`** (реальні дані з remote; потрібні **MINIO_ACCESS_KEY_ID** / **MINIO_SECRET_ACCESS_KEY**), потім **integration** (**Quality Gate** за `test_f1_weighted`, `QUALITY_F1_MIN`). Метрики та артефакти — у **MLflow** (`mlruns` у workspace CI). Юніт-тести схем даних: `tests/fixtures/mini_ham_testdata.py` (лише `tmp_path`, не в CI-пайплайні).
 - **Локально:** `pip install -r requirements.txt -r requirements-dev.txt` (або `requirements-ci.txt` для мінімального набору), `pytest tests/ -m "not integration"`, після повного пайплайну — `pytest tests/ -m integration`.
 - **MLflow Registry (опційно CD):** залиште реєстрацію через `config/model_registry` у `optimize.py` або додайте крок у workflow з секретами сервера MLflow.

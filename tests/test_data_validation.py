@@ -17,6 +17,7 @@ from tests.data_validation import (
     validate_params_json,
     validate_prepared_split,
 )
+from tests.fixtures.mini_ham_testdata import write_mini_ham_raw
 
 
 def test_validate_metadata_schema_ok():
@@ -42,15 +43,8 @@ def test_validate_metadata_missing_column():
 
 def test_load_combined_mini_fixture(tmp_path: Path):
     root = Path(__file__).resolve().parent.parent
-    gen = root / "tests" / "fixtures" / "generate_mini_ham10000.py"
-    assert gen.exists()
-
     raw = tmp_path / "raw"
-    subprocess.run(
-        [sys.executable, str(gen), "--out", str(raw)],
-        cwd=root,
-        check=True,
-    )
+    write_mini_ham_raw(raw)
     meta = raw / "HAM10000_metadata.csv"
     hmnist = raw / "hmnist_28_28_L.csv"
     mdf = pd.read_csv(meta)
@@ -64,11 +58,9 @@ def test_load_combined_mini_fixture(tmp_path: Path):
 
 def test_validate_prepared_after_prepare(tmp_path: Path):
     root = Path(__file__).resolve().parent.parent
-    gen = root / "tests" / "fixtures" / "generate_mini_ham10000.py"
-
     raw = tmp_path / "raw"
     prep = tmp_path / "prepared"
-    subprocess.run([sys.executable, str(gen), "--out", str(raw)], cwd=root, check=True)
+    write_mini_ham_raw(raw)
     subprocess.run(
         [sys.executable, "src/prepare.py", str(raw), str(prep), "--test_size", "0.2"],
         cwd=root,
