@@ -59,8 +59,10 @@ def check_dvc_repo(**_context) -> None:
     )
     if proc.returncode != 0:
         raise RuntimeError(
-            f"dvc status завершився з кодом {proc.returncode}: {proc.stderr or proc.stdout}. "
-            "Перевірте з хоста: dvc status; remote MinIO; lock .dvc/tmp; чи не змонтовано репо лише для читання."
+            f"dvc status завершився з кодом {proc.returncode}: "
+            f"{proc.stderr or proc.stdout}. "
+            "Перевірте з хоста: dvc status; remote MinIO; lock .dvc/tmp; "
+            "чи не змонтовано репо лише для читання."
         )
 
 
@@ -117,7 +119,8 @@ def evaluate_latest_run(**context) -> None:
             if item.is_dir:
                 to_visit.append(item.path)
 
-    # MLflow 3 register_model потребує logged model (каталог від sklearn.log_model), не raw model.pkl.
+    # MLflow 3 register_model потребує logged model (каталог від sklearn.log_model),
+    # не raw model.pkl.
     # Тому пріоритет — завжди "model", .pkl лише як запасний варіант для старих схем.
     suffix = "model"
     if any(p == "model" or p.startswith("model/") for p in paths):
@@ -150,13 +153,15 @@ def register_model_staging(**context) -> None:
     suffix = ti.xcom_pull(key="model_uri_suffix", task_ids="evaluate_model") or "model"
     if not run_id:
         raise ValueError(
-            "Немає run_id після train — перевірте MLFLOW_TRACKING_URI, експеримент ham10000_baseline "
-            "та логи таску train_model (чи записався run у mlruns на змонтованому томі)."
+            "Немає run_id після train — перевірте MLFLOW_TRACKING_URI, "
+            "експеримент ham10000_baseline та логи таску train_model "
+            "(чи записався run у mlruns на змонтованому томі)."
         )
 
     tracking = os.environ.get("MLFLOW_TRACKING_URI", f"file:{ML_REPO}/mlruns")
     mlflow.set_tracking_uri(tracking)
-    # Спочатку "model" (sklearn MLmodel), потім model.pkl; XCom suffix може бути застарілим після зміни evaluate.
+    # Спочатку "model" (sklearn MLmodel), потім model.pkl;
+    # XCom suffix може бути застарілим після зміни evaluate.
     try_order: list[str] = []
     for s in ("model", "model.pkl", suffix):
         if s and s not in try_order:
