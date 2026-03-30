@@ -11,6 +11,7 @@ Airflow Variable (опційно):
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 from datetime import datetime, timedelta
@@ -58,7 +59,8 @@ def check_dvc_repo(**_context) -> None:
     )
     if proc.returncode != 0:
         raise RuntimeError(
-            f"dvc status завершився з кодом {proc.returncode}: {proc.stderr or proc.stdout}"
+            f"dvc status завершився з кодом {proc.returncode}: {proc.stderr or proc.stdout}. "
+            "Перевірте з хоста: dvc status; remote MinIO; lock .dvc/tmp; чи не змонтовано репо лише для читання."
         )
 
 
@@ -67,6 +69,7 @@ def evaluate_latest_run(**context) -> None:
     import mlflow
     from mlflow.tracking import MlflowClient
 
+    log = logging.getLogger(__name__)
     tracking = os.environ.get("MLFLOW_TRACKING_URI", f"file:{ML_REPO}/mlruns")
     mlflow.set_tracking_uri(tracking)
     client = MlflowClient(tracking_uri=tracking)
@@ -79,11 +82,18 @@ def evaluate_latest_run(**context) -> None:
         ti.xcom_push(key="model_uri_suffix", value="model")
         return
 
-    runs = client.search_runs(
-        experiment_ids=[exp.experiment_id],
-        order_by=["start_time DESC"],
-        max_results=20,
-    )
+    try:
+        runs = client.search_runs(
+            experiment_ids=[exp.experiment_id],
+            order_by=["start_time DESC"],
+            max_results=20,
+        )
+    except Exception as exc:
+        log.warning("evaluate_model: search_runs не вдалося (%s) — перевірте цілісність %s", exc, tracking)
+        ti.xcom_push(key="test_f1", value=0.0)
+        ti.xcom_push(key="run_id", value="")
+        ti.xcom_push(key="model_uri_suffix", value="model")
+        return
     runs = [r for r in runs if r.data.tags.get("run_type") != "hpo_study"] or runs
     if not runs:
         ti.xcom_push(key="test_f1", value=0.0)
@@ -105,11 +115,13 @@ def evaluate_latest_run(**context) -> None:
             if item.is_dir:
                 to_visit.append(item.path)
 
+    # MLflow 3 register_model потребує logged model (каталог від sklearn.log_model), не raw model.pkl.
+    # Тому пріоритет — завжди "model", .pkl лише як запасний варіант для старих схем.
     suffix = "model"
-    if any(p == "model.pkl" or p.endswith("/model.pkl") for p in paths):
-        suffix = "model.pkl"
-    elif any(p == "model" or p.startswith("model/") for p in paths):
+    if any(p == "model" or p.startswith("model/") for p in paths):
         suffix = "model"
+    elif any(p == "model.pkl" or p.endswith("/model.pkl") for p in paths):
+        suffix = "model.pkl"
 
     ti.xcom_push(key="test_f1", value=float(f1))
     ti.xcom_push(key="run_id", value=rid)
@@ -135,17 +147,33 @@ def register_model_staging(**context) -> None:
     run_id = ti.xcom_pull(key="run_id", task_ids="evaluate_model")
     suffix = ti.xcom_pull(key="model_uri_suffix", task_ids="evaluate_model") or "model"
     if not run_id:
-        raise ValueError("Немає run_id після train — перевірте MLflow experiment.")
+        raise ValueError(
+            "Немає run_id після train — перевірте MLFLOW_TRACKING_URI, експеримент ham10000_baseline "
+            "та логи таску train_model (чи записався run у mlruns на змонтованому томі)."
+        )
 
     tracking = os.environ.get("MLFLOW_TRACKING_URI", f"file:{ML_REPO}/mlruns")
     mlflow.set_tracking_uri(tracking)
-    model_uri = f"runs:/{run_id}/{suffix}"
+    # Спочатку "model" (sklearn MLmodel), потім model.pkl; XCom suffix може бути застарілим після зміни evaluate.
+    try_order: list[str] = []
+    for s in ("model", "model.pkl", suffix):
+        if s and s not in try_order:
+            try_order.append(s)
 
-    try:
-        mv = mlflow.register_model(model_uri, REGISTERED_MODEL_NAME)
-    except Exception:
-        alt_uri = f"runs:/{run_id}/model.pkl"
-        mv = mlflow.register_model(alt_uri, REGISTERED_MODEL_NAME)
+    mv = None
+    last_exc: BaseException | None = None
+    for art in try_order:
+        uri = f"runs:/{run_id}/{art}"
+        try:
+            mv = mlflow.register_model(uri, REGISTERED_MODEL_NAME)
+            break
+        except Exception as exc:
+            last_exc = exc
+    if mv is None:
+        raise RuntimeError(
+            f"register_model не вдалося для run {run_id}; спробовано {try_order}. "
+            f"Остання помилка: {last_exc!r}. URI={tracking}."
+        ) from last_exc
 
     client = MlflowClient(tracking_uri=tracking)
     try:

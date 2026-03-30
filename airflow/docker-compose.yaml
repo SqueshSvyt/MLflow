@@ -1,9 +1,11 @@
 # Локальний Apache Airflow (LocalExecutor) + монтування ML-репозиторію.
 #
-# З кореня репозиторію:
+# З кореня репозиторію (обов’язково — інакше context для build буде невірний):
 #   echo "AIRFLOW_UID=$(id -u)" > airflow/.env
-#   docker compose -f airflow/docker-compose.yaml up airflow-init
-#   docker compose -f airflow/docker-compose.yaml up -d
+#   docker compose -f airflow/docker-compose.yaml up -d --build
+#
+# Важливо: лише `up airflow-init` робить міграції й завершується — UI (8080) не підніметься,
+# поки не виконаєте `up -d` (або одразу використайте рядок вище).
 #
 # UI: http://localhost:8080  (admin / admin)
 #

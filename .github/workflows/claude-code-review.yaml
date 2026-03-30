@@ -1,0 +1,48 @@
+# Автоматичний код-рев'ю pull request через Claude Code Action.
+#
+# Налаштування репозиторію:
+#   Secrets → Actions: ANTHROPIC_API_KEY
+#   (рекомендовано) Встановити GitHub App: https://github.com/apps/claude
+# Опційно: CLAUDE.md у корені — правила стилю та критерії рев'ю.
+#
+# Форки: workflow не запускається для PR з fork (секрети недоступні).
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+concurrency:
+  group: claude-review-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this pull request for correctness, maintainability, and security.
+            Focus on the diff: bugs, edge cases, error handling, and consistency with the existing codebase.
+            Post concise findings as review comments where helpful; summarize severity (important vs nit).
+            If nothing substantive stands out, say so briefly.
+          claude_args: |
+            --max-turns 8
