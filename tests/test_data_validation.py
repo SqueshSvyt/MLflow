@@ -42,7 +42,6 @@ def test_validate_metadata_missing_column():
 
 
 def test_load_combined_mini_fixture(tmp_path: Path):
-    root = Path(__file__).resolve().parent.parent
     raw = tmp_path / "raw"
     write_mini_ham_raw(raw)
     meta = raw / "HAM10000_metadata.csv"
